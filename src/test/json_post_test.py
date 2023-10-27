@@ -47,5 +47,5 @@ def test_used_id():
     hug.test.post(main_api, endpoint_url, {'id': 3, 'file': {'name': 'test'}})
     result = hug.test.post(main_api, endpoint_url, {'id': 3, 'file': {'name': 'test'}})
     assert result.status == hug.HTTP_409
-    assert result.data['errors']['body'] == 'A file with this ID is already exists'
+    assert result.data['errors']['body'] == 'A file with this ID already exists'
 

@@ -32,7 +32,7 @@ def send_json(body: check_request, response):
         open('{}/{}.json'.format(Config.JSON_DIR, id), 'x')
     except FileExistsError:
         response.status=hug.HTTP_409
-        return {'errors': {'body': 'A file with this ID is already exists'}}
+        return {'errors': {'body': 'A file with this ID already exists'}}
     # Write the file
     with open('{}/{}.json'.format(Config.JSON_DIR, id), 'w') as f:
         json_dump(body['file'], f)
