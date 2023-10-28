@@ -1,0 +1,6 @@
+test-json
+__pycache__
+.env
+*cache
+api.log
+.coverage
