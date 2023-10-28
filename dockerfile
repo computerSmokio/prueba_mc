@@ -4,7 +4,8 @@ copy requirements/dev.txt /tmp/requirements.txt
 run pip install -r /tmp/requirements.txt
 # Copy the app code
 workdir /app
-copy src /app
+copy src /app/src
+run mkdir /app/logs /app/data
 copy .env /app
 ENTRYPOINT ["python", "src/main.py"]
 
@@ -15,15 +16,16 @@ copy requirements/minimal.txt /tmp/requirements.txt
 run pip install -r /tmp/requirements.txt
 # Copy the app code
 workdir /app
-copy src/api /app/src
+copy src/api /app/src/api
 copy src/main.py /app/src
-# Create an unprivileged user to run the app
-USER app_user
-run CHOWN app_user:app_user /app
+# Create an unprivileged user to run the app with no shell
+run adduser -s /bin/false -D -H -u 1000 app_user
+run chown app_user /app
 run chmod -R 710 /app
-run mkdir /var/log/app
-run chown app_user:app_user /var/log/app
-run chmod -R 710 /var/log/app
+run mkdir /var/log/app /app/data
+run chown -R app_user /var/log/app /app
+run chmod -R 710 /var/log/app /app/data
 ENV LOG_DIR=/var/log/app
 
+USER app_user
 ENTRYPOINT ["python", "src/main.py"]
