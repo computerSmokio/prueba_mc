@@ -1,16 +1,25 @@
 import os
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 class ConfigEnvError(Exception):
     pass
 
 class ConfigEnv:
-    """ TAKES ENVIRONMENT VARIABLES FROM .env FILE or FROM OS 
-        ACTS AS A SINGLE SOURCE OF TRUTH FOR ENVIRONMENT VARIABLES
+    """ 
+    TAKES ENVIRONMENT VARIABLES FROM .env FILE or FROM OS 
+    ACTS AS A SINGLE SOURCE OF TRUTH FOR ENVIRONMENT VARIABLES
     """
     BASE_URL: str = ""
+    PORT: int = 8080
     VERSION: str = "v1"
     JSON_DIR: str = "test-json"
+    ENVIRON: str = "dev"
+    LOG_LEVEL: str = "DEBUG"
+    LOG_DIR: str = "/var/log"
 
     def __init__(self, env):
         for key in self.__annotations__:

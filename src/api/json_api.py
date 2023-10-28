@@ -1,9 +1,7 @@
 import hug
 from json import dump as json_dump
 from pathlib import Path
-from dotenv import dotenv_values
 from config import Config
-
 
 # Declare a type to validate request body
 @hug.type(extend=hug.types.json)
