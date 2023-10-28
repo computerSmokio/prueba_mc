@@ -1,8 +1,8 @@
 # startup and teardown functions
 import sys
 import os
-sys.path.append('src/api')
-from config import Config
+sys.path.append('src')
+from api.config import Config
 
 
 endpoint_url = '{}/{}/json'.format(Config.BASE_URL, Config.VERSION)

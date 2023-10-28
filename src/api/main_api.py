@@ -1,7 +1,7 @@
 import hug
-import json_api
-from config import Config
-from logger import gLogger
+from api import json_api
+from api.config import Config
+from api.logger import gLogger
 
 # Create an API
 api = hug.API(__name__)
@@ -23,4 +23,3 @@ api.http.add_middleware(gMLogger)
 
 gLogger.debug(f"Config: {Config}")
 gLogger.info(f"API started on {Config.PORT}:{Config.BASE_URL}")
-hug.API(__name__).http.serve(display_intro=False, no_documentation=True, port=Config.PORT)

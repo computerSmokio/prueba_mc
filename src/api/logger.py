@@ -1,6 +1,6 @@
 import logging
 import logging.handlers
-from config import Config
+from api.config import Config
 
 # Dict of log levels
 log_levels = {

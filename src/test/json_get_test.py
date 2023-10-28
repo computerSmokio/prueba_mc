@@ -1,5 +1,5 @@
 import hug
-import main_api
+from api import main_api
 from dotenv import dotenv_values
 from conftest import startup_function, teardown_function, endpoint_url
 

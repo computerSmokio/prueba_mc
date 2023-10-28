@@ -1,7 +1,7 @@
 import hug
 from json import dump as json_dump
 from pathlib import Path
-from config import Config
+from api.config import Config
 
 # Declare a type to validate request body
 @hug.type(extend=hug.types.json)
