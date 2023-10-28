@@ -8,11 +8,13 @@ except ImportError:
 class ConfigEnvError(Exception):
     pass
 
+
 class ConfigEnv:
     """ 
     TAKES ENVIRONMENT VARIABLES FROM .env FILE or FROM OS 
     ACTS AS A SINGLE SOURCE OF TRUTH FOR ENVIRONMENT VARIABLES
     """
+# ALL ENVIRONMENT VARIABLES ARE DEFINED HERE
     BASE_URL: str = ""
     PORT: int = 8080
     VERSION: str = "v1"
