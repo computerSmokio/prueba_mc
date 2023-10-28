@@ -30,7 +30,12 @@ class ConfigEnv:
                 raise ConfigEnvError(f"Missing environment variable {key}")
             if key in env:
                 try:
-                    setattr(self, key, env[key])
+                    if key == "LOG_LEVEL" and env[key] not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+                        raise ConfigEnvError(f"Invalid value for {key}")
+                    if self.__annotations__[key] == int:
+                        setattr(self, key, int(env[key]))
+                    else:
+                        setattr(self, key, env[key])
                 except ValueError:
                     raise ConfigEnvError(f"Invalid value for {key}")
 
