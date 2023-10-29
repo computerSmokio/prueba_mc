@@ -1,0 +1,3 @@
+from nginx:mainline-alpine3.18-slim
+# set nginx loadbalancer config
+COPY load-balancer.conf /etc/nginx/nginx.conf/config.d/load-balancer.conf

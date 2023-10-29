@@ -1,0 +1,29 @@
+version: "3"
+services:
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: ./nginx/Dockerfile
+    ports:
+      - "80:80"
+    networks:
+      - app_network
+  json_api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    deploy:
+      replicas: 3
+    volumes:
+      - app:/app/data
+    ports:
+      - "8080:8080"
+    networks:
+      - app_network
+
+volumes:
+  app:
+
+networks:
+  app_network:
+    driver: bridge
