@@ -1,6 +1,6 @@
 test-json
 __pycache__
-.env
+.env*
 *cache
 api.log
 .coverage
