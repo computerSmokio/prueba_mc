@@ -7,3 +7,4 @@ api.log
 logs
 venv
 *.c
+build

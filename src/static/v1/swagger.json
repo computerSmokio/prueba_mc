@@ -1,0 +1,364 @@
+{
+  "openapi" : "3.0.0",
+  "servers" : [{
+    "description" : "This server allows to do cRUD actions over JSON files",
+    "url" : "http://localhost:8080/json"
+  } ],
+  "info" : {
+    "description" : "This is a simple JSON API",
+    "version" : "1.0.0",
+    "title" : "Simple Inventory API"
+  },
+  "tags" : [
+    {"name": "administrator"},
+    {"name": "common"}
+    
+  ],
+  "paths" : {
+    "/json" : {
+      "post" : {
+        "tags":["common"],
+        "summary" : "Upload a json file",
+        "operationId" : "sendJson",
+        "description" : "By sending a json body with ID and a File, the server saves this File identifing it with the ID provided\n",
+        "parameters" : [ {
+          "in" : "body",
+          "name" : "body",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/components/schemas/file_upload_body"
+          }
+        } ],
+        "responses" : {
+          "201" : {
+            "description" : "Json received",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/file_upload_resp"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "bad input body",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/400response"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "File with that ID already exists",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "title" : {
+                      "type" : "string",
+                      "example" : "File already exists"
+                    },
+                    "description" : {
+                      "type" : "string",
+                      "example" : "A file with this ID already exists"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Permission error creating the file",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/500response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/json/{id}" : {
+      "get" : {
+        "tags":["common"],
+        "summary" : "Get json file by id",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "schema" : {
+            "type" : "integer"
+          },
+          "required" : true,
+          "description" : "Numeric ID of the file to get"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "json file",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "file" : {
+                      "type" : "object",
+                      "example" : {
+                        "contenido" : "del archivo"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "File not found",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/404response"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Permission error creating the file",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/500response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags":["common"],
+        "summary" : "Delete json file by id",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "schema" : {
+            "type" : "integer"
+          },
+          "required" : true,
+          "description" : "Numeric ID of the file to delete"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "json file",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "message" : {
+                      "type" : "string",
+                      "example" : "JSON Deleted"
+                    },
+                    "id" : {
+                      "type" : "integer",
+                      "example" : 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "File not found",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/404response"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Permission error creating the file",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/500response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags":["common"],
+        "summary" : "Modify json file by id",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "schema" : {
+            "type" : "integer"
+          },
+          "required" : true,
+          "description" : "Numeric ID of the file to modify",
+          "example" : null
+        }, {
+          "in" : "body",
+          "name" : "body",
+          "schema" : {
+            "type" : "object"
+          },
+          "required" : true,
+          "description" : "new Content that will replace"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "json file",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "message" : {
+                      "type" : "string",
+                      "example" : "JSON modified"
+                    },
+                    "id" : {
+                      "type" : "integer",
+                      "example" : 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "no json body",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/400response"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "File not found",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/404response"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Permission error modifing the file",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/500response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health" : {
+      "get" : {
+        "tags":["administrator"],
+        "summary" : "Return health status of the service",
+        "responses" : {
+          "200" : {
+            "description" : "the service is healty",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "message" : {
+                      "type" : "string",
+                      "example" : "it's alive!"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "file_upload_body" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "example" : 0
+          },
+          "file" : {
+            "type" : "object",
+            "example" : "JSON object to save"
+          }
+        }
+      },
+      "file_upload_resp" : {
+        "type" : "object",
+        "properties" : {
+          "message" : {
+            "type" : "string",
+            "example" : "JSON received"
+          },
+          "id" : {
+            "type" : "integer",
+            "example" : 0
+          }
+        }
+      },
+      "400response" : {
+        "type" : "object",
+        "properties" : {
+          "title" : {
+            "type" : "string",
+            "example" : "Error title"
+          },
+          "description" : {
+            "type" : "string",
+            "example" : "Error description"
+          }
+        }
+      },
+      "500response" : {
+        "type" : "object",
+        "properties" : {
+          "title" : {
+            "type" : "string",
+            "example" : "Permission error"
+          },
+          "description" : {
+            "type" : "string",
+            "example" : "The file cannot be created"
+          }
+        }
+      },
+      "404response" : {
+        "type" : "object",
+        "properties" : {
+          "title" : {
+            "type" : "string",
+            "example" : "File not found"
+          },
+          "description" : {
+            "type" : "string",
+            "example" : "The file with this ID does not exist"
+          }
+        }
+      }
+    }
+  }
+}

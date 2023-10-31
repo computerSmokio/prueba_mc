@@ -15,12 +15,10 @@ class ConfigEnv:
     ACTS AS A SINGLE SOURCE OF TRUTH FOR ENVIRONMENT VARIABLES
     """
 # ALL ENVIRONMENT VARIABLES ARE DEFINED HERE
-    BASE_URL: str = ""
     PORT: int = 8080
-    VERSION: str = "v1"
-    JSON_DIR: str = "test-json"
-    ENVIRON: str = "dev"
-    LOG_LEVEL: str = "DEBUG"
+    JSON_DIR: str = "data"
+    ENVIRON: str = "prod"
+    LOG_LEVEL: str = "INFO"
     LOG_DIR: str = "/var/log"
 
     def __init__(self, env):
