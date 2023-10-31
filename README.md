@@ -20,13 +20,11 @@
 ------------------------------------------------------------------------------------------
 
 ## Environment Variables
-<details>
-    <summary>Show more</summary>
-    > | Name | Type | Required | Values | Default |
-    > |------|------|----------|--------|---------| 
-    > | ENVIRON | str | :x: | 'dev|prod' | prod |
-    > | PORT | int | :x: | 1 to 65535 | 8080 |
-    > | JSON_DIR | str | :x: | 'path/for/data' | data |
-    > | LOG_LEVEL | str | :x: | DEBUG\|INFO\|ERROR\|CRITICAL\|WARNING | INFO |
-    > | LOG_DIR | str | :x: | 'path/for/log' | /var/log |
-</details>
+
+| Name | Type | Required | Values | Default |
+|--|--|--|--|--| 
+| ENVIRON | str | :x: | 'dev\|prod' | prod |
+| PORT | int | :x: | 1 to 65535 | 8080 |
+| JSON_DIR | str | :x: | 'path/for/data' | data |
+| LOG_LEVEL | str | :x: | DEBUG\|INFO\|ERROR\|CRITICAL\|WARNING | INFO |
+| LOG_DIR | str | :x: | 'path/for/log' | /var/log |
