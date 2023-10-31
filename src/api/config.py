@@ -1,4 +1,4 @@
-import os
+from os import environ as os_environ
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -44,4 +44,4 @@ class ConfigEnv:
     def __repr__(self):
         return str(self.__dict__) 
     
-Config = ConfigEnv(os.environ)
+Config = ConfigEnv(os_environ)
