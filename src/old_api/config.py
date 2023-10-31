@@ -1,4 +1,4 @@
-from os import environ as os_environ
+import os
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -15,10 +15,12 @@ class ConfigEnv:
     ACTS AS A SINGLE SOURCE OF TRUTH FOR ENVIRONMENT VARIABLES
     """
 # ALL ENVIRONMENT VARIABLES ARE DEFINED HERE
+    BASE_URL: str = ""
     PORT: int = 8080
-    JSON_DIR: str = "data"
-    ENVIRON: str = "prod"
-    LOG_LEVEL: str = "INFO"
+    VERSION: str = "v1"
+    JSON_DIR: str = "test-json"
+    ENVIRON: str = "dev"
+    LOG_LEVEL: str = "DEBUG"
     LOG_DIR: str = "/var/log"
 
     def __init__(self, env):
@@ -42,4 +44,4 @@ class ConfigEnv:
     def __repr__(self):
         return str(self.__dict__) 
     
-Config = ConfigEnv(os_environ)
+Config = ConfigEnv(os.environ)

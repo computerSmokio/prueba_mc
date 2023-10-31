@@ -1,3 +1,6 @@
 [run]
 branch = True
-omit = /usr/*, /System/*
+omit = /usr/*, /System/* src/old_api/* src/test/conftest*
+[report]
+exclude_lines =
+    pragma: no cover

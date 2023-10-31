@@ -1,5 +1,9 @@
-from api import main_api
 from api.config import Config
+from api.logger import gLogger
+from api.main_api import create as create_api
+from wsgiref.simple_server import make_server
 
 if __name__ == '__main__':
-    main_api.api.http.serve(no_documentation=True, display_intro=False, port=Config.PORT)
+    with make_server('', Config.PORT, create_api()) as server:
+        gLogger.info('Server started')
+        server.serve_forever() 

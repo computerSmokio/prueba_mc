@@ -4,3 +4,7 @@ __pycache__
 *cache
 api.log
 .coverage
+logs
+venv
+*.c
+build
