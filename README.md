@@ -4,18 +4,16 @@
 ##  Install process
 
 #### Install dependencies
-    ```
         pip install -r requirements/{minimal|dev}.txt
-    ```
+
 #### if want to compile to cython
-    You need to install the dev requirements or minimal + Cython
-    ```
+You need to install the dev requirements or minimal + Cython
+
         pytho3 src/setup.py build_ext --inplace
-    ```
+ 
 #### Start the server
-    ```
+
         python3 {src|build}/main.py
-    ```
 
 ------------------------------------------------------------------------------------------
 
