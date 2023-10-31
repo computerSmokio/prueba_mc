@@ -1,28 +1,23 @@
-import hug
-from api import main_api
-from dotenv import dotenv_values
-import pytest
-from conftest import startup_function, teardown_function, endpoint_url, base_dir
+from conftest import setup_function, teardown_function, endpoint_url, base_dir, client
+from falcon import HTTP_200, HTTP_400, HTTP_404
 
-def test_normal_path():
-    hug.test.post(main_api, endpoint_url, {'id': 1, 'file': {'name': 'test'}})
-    result = hug.test.put(main_api, endpoint_url+'/1', {'name': 'test2'})
-    assert result.status == hug.HTTP_200
-    assert result.data['message'] == 'JSON modified'
+def test_normal_path(client):
+    client.simulate_post(path=endpoint_url, json={'id': 1, 'file': {'name': 'test'}})
+    result = client.simulate_put(path=endpoint_url+'/1', json={'name': 'test2'})
+    assert result.status == HTTP_200
+    assert result.json['message'] == 'JSON modified'
     with open('{}/1.json'.format(base_dir), 'r') as f:
         assert f.read() == '{"name": "test2"}'
     
-def test_missing_id():
-    result = hug.test.put(main_api, endpoint_url+'//', {'name': 'test2'})
-    assert result.status == hug.HTTP_400
-    assert result.data['errors']['id'] == 'Invalid whole number provided'
+def test_missing_id(client):
+    result = client.simulate_put(path=endpoint_url+'//', json={'name': 'test2'})
+    assert result.status == HTTP_404
 
-def test_wrong_id():
-    result = hug.test.put(main_api, endpoint_url+'/test', {'name': 'test2'})
-    assert result.status == hug.HTTP_400
-    assert result.data['errors']['id'] == 'Invalid whole number provided'
+def test_wrong_id(client):
+    result = client.simulate_put(path=endpoint_url+'/test', json={'name': 'test2'})
+    assert result.status == HTTP_404
 
-def test_no_file():
-    result = hug.test.put(main_api, endpoint_url+'/666', {'name': 'test2'})
-    assert result.status == hug.HTTP_404
-    assert result.data['errors']['id'] == 'The file with this ID does not exist'
+def test_no_file(client):
+    result = client.simulate_put(path=endpoint_url+'/666', json={'name': 'test2'})
+    assert result.status == HTTP_404
+    assert result.json['title'] == 'File not found'
