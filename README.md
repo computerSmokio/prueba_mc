@@ -9,7 +9,7 @@
 #### if want to compile to cython
 You need to install the dev requirements or minimal + Cython
 
-        pytho3 src/setup.py build_ext --inplace
+        python3 src/setup.py build_ext --inplace
  
 #### Start the server
 
