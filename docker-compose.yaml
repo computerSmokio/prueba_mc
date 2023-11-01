@@ -1,23 +1,29 @@
 version: "3"
 services:
-  nginx:
+  haproxy:
     build:
-      context: ./nginx
-      dockerfile: ./nginx/Dockerfile
+      context: ./loadbalancers
+      dockerfile: ./dockerfile.haproxy
+    environment:
+      - HAPROXY_PORT=8000
+      - API_PORT=8080
+      - HAPROXY_STATS_PORT=1936
     ports:
-      - "80:80"
+      - "8000:8000"
+      - "1936:1936"
     networks:
       - app_network
+  
   json_api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: dockerfile
     deploy:
       replicas: 3
     volumes:
       - app:/app/data
     ports:
-      - "8080:8080"
+      - "8080"
     networks:
       - app_network
 

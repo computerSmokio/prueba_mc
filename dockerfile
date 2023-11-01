@@ -19,6 +19,8 @@ run apk add gcc build-base
 # Copy the app code
 workdir /app
 copy src/api /app/src/api
+copy src/static /app/src/static
+copy src/main.py /app/src
 copy src/setup.py /app/src
 run python src/setup.py build_ext --inplace
 
@@ -28,7 +30,6 @@ run pip install -r /tmp/requirements.txt
 # Copy compiled api
 workdir /app
 copy --from=build_maker /app/build /app/src
-copy src/main.py /app/src
 run mkdir /var/log/app /app/data
 
 # Create an unprivileged user to run the app with no shell
