@@ -17,7 +17,10 @@ jobs:
 
     - name: Install dependencies
       run: pip install -r requirements/dev.txt
-
+    
+    - name: create data directory
+      run: mkdir data
+      
     - name: Run coverage  & pytest
       run: ENVIRON="test" coverage run -m pytest
 
