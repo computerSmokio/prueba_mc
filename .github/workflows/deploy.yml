@@ -1,0 +1,35 @@
+name: Deploy CloudFormation Stack
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'CFTemplate.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    needs: unit-test
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Set up AWS CLI
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy CloudFormation Stack
+        run: |
+          aws cloudformation deploy \
+            --template-file cloudformation-template.yaml \
+            --stack-name jsonApiStack \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              Key1=Value1 \
+              Key2=Value2  

@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+
+  LambdaFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      FunctionName: AddServerToHAProxyLambda
+      Code:
+        S3Bucket: !Ref LambdaS3Bucket
+        S3Key: "your-lambda-deployment-package.zip"
+      Runtime: "nodejs14.x"
+      Timeout: 30
+
+  LambdaExecutionRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service: "lambda.amazonaws.com"
+              Action: "sts:AssumeRole"
+        Policies:
+          - PolicyName: LambdaExecutionPolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: "Allow"
+                  Action:
+                    - "logs:CreateLogGroup"
+                    - "logs:CreateLogStream"
+                    - "logs:PutLogEvents"
+                  Resource: "arn:aws:logs:*:*:*"
+                - Effect: "Allow"
+                  Action:
+                    - "ec2:DescribeInstances"
+                  Resource: "*"
+
+
+  EventRule:
+      Type: "AWS::Events::Rule"
+      Properties:
+        Description: "Trigger Lambda on ASG instance launch"
+        EventPattern:
+          source:
+            - "aws.autoscaling"
+          detailType:
+            - "EC2 Instance Launch Successful"
+          detail:
+            AutoScalingGroupName:
+              - !Ref AutoScalingGroupName
+        State: "ENABLED"
+        Targets:
+          - Arn: !GetAtt LambdaFunction.Arn
+            Id: "AddServerToHAProxyLambdaTarget"

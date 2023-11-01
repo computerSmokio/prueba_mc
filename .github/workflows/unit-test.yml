@@ -1,9 +1,15 @@
 name: Run Pytest Tests
 
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - 'src/**'
+  pull_request:
+    paths:
+      - 'src/**'
 
 jobs:
-  test:
+  unit-test:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,8 +30,12 @@ jobs:
     - name: Run coverage & pytest (Test Coverage must be graeter or equal to 90%)
       run: | 
         ENVIRON="test" coverage run -m pytest
-        if [ $(coverage report --format=total) -lt 90 ]; then
-          echo "Coverage is less than 100%"
+        total=$(coverage report --format=total)
+        if [ $total -lt 90 ]; then
+          echo "Coverage is less than 100%, actual coverage ${total}"
           exit 1
         fi
+        echo "Actual coverage ${total}"
+      
+
 
