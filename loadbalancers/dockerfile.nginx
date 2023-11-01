@@ -1,0 +1,23 @@
+from alpine:3.18.4
+
+# INSTALL NGINX WITH NGINX_UPSTREAM_CHECK_MODULE (FREE VERSION HEALTHCHECKS)
+
+
+#INSTALL DEPENDENCIES
+
+run apk --no-cache add build-base pcre-dev zlib-dev openssl-dev git
+
+run git clone https://github.com/nginx/nginx.git /usr/src/nginx
+run git clone https://github.com/yaoweibin/nginx_upstream_check_module.git /usr/src/nginx_upstream_check_module
+
+run cd /usr/src/nginx && ./auto/configure --with-http_ssl_module --add-module=../nginx_upstream_check_module \ 
+    && make && make install     
+
+copy load-balancer.conf /etc/nginx/conf.d/default.conf
+copy nginx.conf /etc/nginx/nginx.conf
+run cp /usr/local/nginx/sbin/nginx /usr/sbin/nginx \
+    && cp /usr/src/nginx/conf/mime.types /etc/nginx/mime.types
+run mkdir /var/log/nginx
+
+
+CMD ["nginx","-c", "/etc/nginx/nginx.conf", "-g", "daemon off;"]
