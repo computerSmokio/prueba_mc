@@ -43,7 +43,7 @@ terminal_handler.setLevel(log_levels[Config.LOG_LEVEL] if Config.ENVIRON != 'dev
 terminal_handler.setFormatter(formatter)
 gLogger.addHandler(terminal_handler)
 
-class LoggerMiddleware():
+class LoggerMiddleware(): # pragma: no cover
     def process_response(self, req, resp, resource, req_succeeded):
         """Log the response"""
         log = {

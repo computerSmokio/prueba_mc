@@ -1,0 +1,23 @@
+name: Run Pytest Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8.10
+
+    - name: Install dependencies
+      run: pip install -r requirements/dev.txt
+
+    - name: Run coverage  & pytest
+      run: coverage run -m pytest
+
