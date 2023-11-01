@@ -4,6 +4,7 @@ from api.config import Config
 from json import dumps as json_dumps
 from pathlib import Path
 
+gLogger = logging.getLogger('api')
 
 if Config.ENVIRON != 'test': # pragma: no cover
 # Dict of log levels
@@ -16,7 +17,6 @@ if Config.ENVIRON != 'test': # pragma: no cover
     }
 
     # Create a logger
-    gLogger = logging.getLogger('api')
     gLogger.setLevel(log_levels[Config.LOG_LEVEL])
     # Format logs
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
