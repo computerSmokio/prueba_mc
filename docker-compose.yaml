@@ -11,6 +11,7 @@ services:
     ports:
       - "8000:8000"
       - "1936:1936"
+      - "660:660"
     networks:
       - app_network
   
