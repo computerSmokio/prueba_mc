@@ -21,6 +21,11 @@ jobs:
     - name: create data directory
       run: mkdir data
       
-    - name: Run coverage  & pytest
-      run: ENVIRON="test" coverage run -m pytest
+    - name: Run coverage & pytest (Test Coverage must be graeter or equal to 90%)
+      run: | 
+        ENVIRON="test" coverage run -m pytest
+        if [ $(coverage report --format=total) -lt 90 ]; then
+          echo "Coverage is less than 100%"
+          exit 1
+        fi
 
