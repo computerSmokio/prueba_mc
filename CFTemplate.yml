@@ -70,21 +70,7 @@ Resources:
     Properties:  
       Size: 1
       AvailabilityZone: { "Fn::GetAtt" : ["EC2I80L5", "AvailabilityZone"] }
- 
-  EC2VA2M0LC:
-    Type: 'AWS::EC2::VolumeAttachment'
-    Properties:
-      Device: '/dev/sdh'
-      VolumeId: !Ref EC2V4XZKL
-      InstanceId: !Ref EC2I4RZA6
- 
-  EC2VA4O8N1:
-    Type: 'AWS::EC2::VolumeAttachment'
-    Properties:
-      Device: '/dev/sdh'
-      VolumeId: !Ref EC2V3KIVD
-      InstanceId: !Ref EC2I80L5
- 
+
   EFSFSEQKW:
     Type: 'AWS::EFS::FileSystem'
     Properties: {}

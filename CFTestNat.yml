@@ -1,4 +1,15 @@
 AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  HAPROXYPORT:
+    Type: Number
+    Default: 80
+  APIPORT:
+    Type: Number
+    Default: 8080
+  HAPROXYSTATSPORT:
+    Type: Number
+    Default: 8081
+
 Mappings:
     AppConfig:
       API:
@@ -50,83 +61,190 @@ Resources:
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort:
-            Fn::FindInMap:
-              - "AppConfig"
-              - "API"
-              - "PORT"
-          ToPort:
-            Fn::FindInMap:
-              - "AppConfig"
-              - "API"
-              - "PORT"
-          CidrIp:
-            Fn::FindInMap:
-              - "SubnetConfig"
-              - "Public"
-              - "CIDR"
+          FromPort: !Ref APIPORT
+          ToPort: !Ref APIPORT
+          SourceSecurityGroupId: !Ref NatInstanceSecurityGroup
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
           CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId:
+            - !Ref EFSSecurityGroup
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-NAT-SG
-  EC2I4RZA6:
-    Type: 'AWS::EC2::Instance'
-    Properties: 
-      InstanceType: 't2.micro'
-      ImageId: 'ami-1853ac65'
-      KeyName: "matias_admin"
-      SubnetId: 
-        Ref: "PrivateSubnet"
-      SecurityGroupIds:
-        - !Ref PrivateEC2SecurityGroup  
-  EC2I80L5:
-    Type: 'AWS::EC2::Instance'
-    Properties:  
-      InstanceType: 't2.micro'
-      ImageId: 'ami-1853ac65'
-      SubnetId: 
-        Ref: "PrivateSubnet"
-      SecurityGroupIds:
-        - !Ref PrivateEC2SecurityGroup
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          yum update -y
-          yum install -y docker
-          docker run -v /dev/sdh:/app/data -d -p 8080:8080 --name json-api matiasnv2018/json-api
+   
   PrivateRouteToNAT:
     Type: AWS::EC2::Route
     Properties:
       RouteTableId: !Ref PrivateRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       InstanceId: !Ref EC2NatGateway
-  EC2V3KIVD:
-    Type: 'AWS::EC2::Volume'
-    Properties:  
-      Size: 1
-      AvailabilityZone: { "Fn::GetAtt" : ["EC2I80L5", "AvailabilityZone"] }
- 
-  EC2VA2M0LC:
-    Type: 'AWS::EC2::VolumeAttachment'
+
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
     Properties:
-      Device: '/dev/sdh'
-      VolumeId: !Ref EC2V4XZKL
-      InstanceId: !Ref EC2I4RZA6
- 
-  EC2VA4O8N1:
-    Type: 'AWS::EC2::VolumeAttachment'
-    Properties:
-      Device: '/dev/sdh'
-      VolumeId: !Ref EC2V3KIVD
-      InstanceId: !Ref EC2I80L5
- 
+      GroupDescription: Enable EFS to access the internet
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !Ref PrivateEC2SecurityGroup
+
   EFSFSEQKW:
     Type: 'AWS::EFS::FileSystem'
-    Properties: {}
+    Properties:
+      AvailabilityZoneName: { "Fn::GetAtt" : ["PrivateSubnet", "AvailabilityZone"] }
+
+  EFSMountTarget:
+    Type: 'AWS::EFS::MountTarget'
+    Properties:
+      FileSystemId: !Ref EFSFSEQKW
+      SubnetId: !Ref PrivateSubnet
+      SecurityGroups:
+        - !Ref PrivateEC2SecurityGroup
+
+  AutoScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+      LaunchConfigurationName:
+        Ref: InstanceLaunchConfig
+      MinSize: 1
+      MaxSize: 3
+      DesiredCapacity: 1
+      VPCZoneIdentifier:
+        - Ref: PrivateSubnet
+
+  InstanceLaunchConfig:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+      ImageId: 'ami-1853ac65'
+      InstanceType: 't2.micro'
+      KeyName: matias_admin
+      SecurityGroups:
+        - !Ref PrivateEC2SecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y docker
+          #docker run -v /dev/sdh:/app/data -d -p 8080:8080 --name json-api matiasnv2018/json-api
+
+          # connect to efs and mount it
+          yum install -y amazon-efs-utils
+          mkdir /mnt/efs
+          mount -t nfs ${EFSFSEQKW}:/ /mnt/efs
+
+
+
 ###### END OF PRIVATE STUFF ######
+
+###### START OF LAMBDA  ######
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable Lambda to access the internet
+      VpcId: !Ref VPC
+
+  LambdaFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      FunctionName: AddServerToHAProxyLambda
+      Code: 
+        ZipFile: |
+          const net = require('net');
+          const AWS = require('aws-sdk');
+
+          exports.handler = async (event) => {
+              const newServerPort = process.env.NEW_SERVER_PORT;
+              const haproxyEndpoint = process.env.HAPROXY_ENDPOINT;
+              
+              const haproxyBackend = 'app-servers'
+              const newServerName = 'new_server'; 
+              const instanceId = event.detail['EC2InstanceId'];
+              
+              const ec2 = new AWS.EC2();
+              const instanceDesc = await ec2.describeInstances([instanceId]).promise();
+              const newServerIp = instanceDesc.Reservations[0].Instances[0].PrivateIpAddress;
+              // Construct the HAProxy stats command to add a new server
+              const command = `add server ${haproxyBackend}/${newServerName} ${newServerIp}:${newServerPort}`;
+              // Create a socket connection to the HAProxy stats socket
+              
+              const client = new net.Socket();
+              return new Promise((resolve, reject) => {
+                  client.connect(haproxyEndpoint, () => {
+                      console.log('Connected to HAProxy stats socket');
+                      client.write(`${command}\n`);
+                  });
+
+                  client.on('data', (data) => {
+                      console.log(`Received: ${data}`);
+                      client.end();
+                      resolve('Server added successfully');
+                  });
+
+                  client.on('error', (err) => {
+                      console.error(`Error: ${err}`);
+                      client.destroy();
+                      reject('Error adding server to HAProxy');
+                  });
+              });
+          };
+      Runtime: "nodejs14.x"
+      Timeout: 30
+
+  LambdaExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: LambdaExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+              - Effect: "Allow"
+                Action:
+                  - "ec2:DescribeInstances"
+                Resource: "*"
+
+  EventRule:
+    Type: "AWS::Events::Rule"
+    Properties:
+      Description: "Trigger Lambda on ASG instance launch"
+      EventPattern:
+        source:
+          - "aws.autoscaling"
+        detailType:
+          - "EC2 Instance Launch Successful"
+        detail:
+          AutoScalingGroupName:
+            - !Ref AutoScalingGroup
+      State: "ENABLED"
+      Targets:
+        - Arn: !GetAtt LambdaFunction.Arn
+          Id: "AddServerToHAProxyLambdaTarget"
+
+
+###### END OF LAMBDA ######
+
 ###### START OF PUBLIC STUFF ######
   NatInstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -134,6 +252,14 @@ Resources:
       GroupDescription: Enable NAT instance to access the internet
       VpcId: !Ref VPC
       SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref HAPROXYPORT
+          ToPort: !Ref HAPROXYPORT
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: !Ref HAPROXYSTATSPORT
+          ToPort: !Ref HAPROXYSTATSPORT
+          CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
@@ -146,6 +272,14 @@ Resources:
           FromPort: 22
           ToPort: 22
           CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          SourceSecurityGroupId: !Ref PrivateEC2SecurityGroup
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          SourceSecurityGroupId: !Ref PrivateEC2SecurityGroup
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-NAT-SG
@@ -179,9 +313,6 @@ Resources:
       ImageId: 'ami-1853ac65'
       KeyName: matias_admin
       SourceDestCheck: false
-      Environment:
-        Variables:
-          http_proxy: "http://
       SubnetId: 
         Ref: "PublicSubnet"
       SecurityGroupIds:
@@ -195,9 +326,9 @@ Resources:
           yum update -y
           yum install -y haproxy
           curl -o /etc/haproxy/haproxy.cfg https://raw.githubusercontent.com/computerSmokio/prueba_mc/feature-nginx-n-dockercompose/loadbalancers/haproxy.cfg?token=GHSAT0AAAAAACJC3GVBPYHXDE6PEGZ3VB7GZKCYSEA
-          export HAPROXY_PORT=${HAPROXY_PORT}
-          export API_PORT=${API_PORT}
-          export HAPROXY_STATS_PORT=${HAPROXY_STATS_PORT}
+          export HAPROXY_PORT=${HAPROXYPORT}
+          export API_PORT=${APIPORT}
+          export HAPROXY_STATS_PORT=${HAPROXYSTATSPORT}
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
@@ -214,4 +345,4 @@ Resources:
     Properties:
       RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
-      InternetGatewayId: !Ref InternetGateway
+      GatewayId: !Ref InternetGateway
