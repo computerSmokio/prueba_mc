@@ -12,6 +12,8 @@ services:
       - "8000:8000"
       - "1936:1936"
       - "660:660"
+    volumes:
+      - /var/run/haproxy:/var/run/haproxy
     networks:
       - app_network
   
