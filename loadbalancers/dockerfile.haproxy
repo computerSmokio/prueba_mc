@@ -1,9 +1,6 @@
-from haproxy:2.9-dev8-alpine3.18
+from haproxy:2.8-alpine3.18
 USER root
-run mkdir -p /var/run/haproxy &&\
- chown -R haproxy:haproxy /var/run/haproxy &&\
+run mkdir /var/run/haproxy | true
+run chown -R haproxy:haproxy /var/run/haproxy &&\
  chmod -R 700 /var/run/haproxy
 copy haproxy.cfg /usr/local/etc/haproxy/haproxy.cfg
-copy *.sh /home/haproxy/
-run apk add socat
-USER haproxy
