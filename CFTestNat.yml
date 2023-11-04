@@ -15,6 +15,17 @@ Parameters:
   HAPROXYVERSION:
     Type: String
     Default: haproxy-2.8.3
+  DOCKERUSER:
+    Type: String
+  DOCKERPASS:
+    Type: String
+    NoEcho: true
+  REGISTRYURL:
+    Type: String
+    Default: matiasvg2018/json-api
+  IMAGETAG:
+    Type: String
+    Default: 0.1
 
 Mappings:
     SubnetConfig:
@@ -129,6 +140,7 @@ Resources:
     DependsOn: 
       - EC2NatGateway
       - LambdaFunction
+      - EventRule
     Properties:
       LaunchConfigurationName:
         Ref: InstanceLaunchConfig
@@ -148,16 +160,17 @@ Resources:
         - !Ref PrivateEC2SecurityGroup
       UserData:
         Fn::Base64: !Sub |
-          #!/bin/bash
+          #!/bin/bash -e
           yum update -y
           yum install -y docker
-          #docker run -v /dev/sdh:/app/data -d -p 8080:8080 --name json-api matiasnv2018/json-api
-
+          service docker start
+          echo "${DOCKERPASS}" | docker login --username ${DOCKERUSER} --password-stdin $REGISTRY_URL
           # connect to efs and mount it
           yum install -y amazon-efs-utils
           mkdir /mnt/efs
-          mount -t nfs ${EFSFSEQKW}:/ /mnt/efs
-
+          mount -t efs ${EFSFSEQKW}:/ /mnt/efs
+          # run the container
+          docker run -v /mnt/efs/:/app/data -d -p 8080:8080 --name json-api matiasvg2018/json-api:${IMAGETAG}
 
 ###### END OF PRIVATE STUFF ######
 
@@ -177,7 +190,7 @@ Resources:
       Environment:
         Variables:
           NEW_SERVER_PORT: !Ref APIPORT
-          HAPROXY_HOST: !GetAtt EC2NatGateway.PrivateIp
+          HAPROXY_HOST: !GetAtt EC2NatGateway.PublicIp
           HAPROXY_PORT: !Ref HAPROXYRUNAPIPORT
       Code: 
         ZipFile: |
@@ -191,26 +204,32 @@ Resources:
 
               const haproxyBackend = 'app-servers'
               const instanceId = event.detail['EC2InstanceId'];
-              
-              if(event['detail-type']==="EC2 Instance-launch Lifecycle Action"){
-                  addServer(instanceId, haproxyBackend, newServerPort, haproxyPort, haproxyHost)
+              console.log(instanceId);
+              if(event['detail-type']==="EC2 Instance Launch Successful"){
+                  await addServer(instanceId, haproxyBackend, newServerPort, haproxyPort, haproxyHost)
               }else{
-                  deleteServer(instanceId, haproxyBackend, haproxyPort, haproxyHost)
+                  await deleteServer(instanceId, haproxyBackend, haproxyPort, haproxyHost)
               }
           };
 
 
-          function addServer(instanceId, backend, newPort, port, host){
-              const newServerIp = getInstanceIp(instanceId)
-              const command = `add server ${backend}/${instanceId} ${newServerIp}:${newPort}\n`;
-              send_command(command, port, host);
-              console.log("Server "+instanceId+" Adde")
+          async function addServer(instanceId, backend, newPort, port, host){
+              const newServerIp = await getInstanceIp(instanceId);
+              console.log(newServerIp);
+              var command = `add server ${backend}/${instanceId} ${newServerIp}:${newPort} check\n`;
+              await send_command(command, port, host);
+              command = `set server ${backend}/${instanceId} state ready\n`
+              await send_command(command, port, host);
+              command = `enable health ${backend}/${instanceId}\n`
+              await send_command(command, port, host);
           }
 
-          function deleteServer(instanceId, backend, port, host){
-              const command = `del server ${backend}/${instanceId}\n`;
-              send_command(port, host);
-              console.log("Server "+instanceId+" Deleted")
+          async function deleteServer(instanceId, backend, port, host){
+              var command = `set server ${backend}/${instanceId} state maint\n`
+              await send_command(command, port, host);
+              command = `del server ${backend}/${instanceId}\n`;
+              await send_command(command, port, host);
+              console.log('Server deleted from HAProxy');
           }
 
           async function getInstanceIp(instanceId){
@@ -234,7 +253,12 @@ Resources:
                   client.on('data', (data) => {
                       console.log(`Received: ${data}`);
                       client.end();
-                      resolve('Server added successfully');
+                      var dataStr=data.toString().trim();
+                      if ( dataStr=="" || data.includes("New") || data.includes("deleted")){
+                          resolve(data);
+                      }else{
+                          reject(`error: ${data}`)
+                      }
                 });
 
                   client.on('error', (err) => {
@@ -244,6 +268,7 @@ Resources:
                   });
               });
           }
+
 
       Runtime: "nodejs14.x"
       Timeout: 30
@@ -286,12 +311,19 @@ Resources:
           - "EC2 Instance Terminate Successful"
         detail:
           AutoScalingGroupName:
-            - !Ref AutoScalingGroup
+            - prefix: !Sub ${AWS::StackName}-AutoScalingGroup
       State: "ENABLED"
       Targets:
         - Arn: !GetAtt LambdaFunction.Arn
           Id: "AddServerToHAProxyLambdaTarget"
 
+  InvokePermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt EventRule.Arn
 
 ###### END OF LAMBDA ######
 
@@ -318,6 +350,14 @@ Resources:
           FromPort: 22
           ToPort: 22
           CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 
+            Fn::FindInMap:
+              - "SubnetConfig"
+              - "Private"
+              - "CIDR"
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-NAT-SG
@@ -362,25 +402,27 @@ Resources:
         - !Ref NatInstanceSecurityGroup
       UserData:
         Fn::Base64: !Sub |
-          #!/bin/bash
+          #!/bin/bash -e
           echo 1 > /proc/sys/net/ipv4/ip_forward
           /sbin/iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
           /sbin/iptables-save > /etc/sysconfig/iptables
           yum update -y
-          yum install -y aws-cfn-bootstrap gcc
+          yum install -y aws-cfn-bootstrap gcc socat
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource EC2NatGateway --region ${AWS::Region}
-          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource EC2WaitHandle --region ${AWS::Region} # Bajar al fondo
           export HAPROXY_PORT=${HAPROXYPORT}
           export HAPROXY_STATS_PORT=${HAPROXYSTATSPORT}
           export HAPROXY_RUN_API_PORT=${HAPROXYRUNAPIPORT}
           cd /opt/src/haproxy/${HAPROXYVERSION}
           make TARGET=generic && make install
           ./haproxy -f /etc/haproxy/haproxy.cfg -D
+          echo "*/3 * * * * /opt/src/scripts/cron-job.sh" | crontab -
+          service crond start
+
     Metadata:
       AWS::CloudFormation::Authentication:
         S3AccessCreds:
           type: S3
-          roleName: !Ref EC2NatGatewayS3AccessRole
+          roleName: !Ref EC2NatGatewayAccessRole
           buckets: 
             - provision-bucket
       AWS::CloudFormation::Init:
@@ -390,24 +432,17 @@ Resources:
           files:
             /etc/haproxy/haproxy.cfg:
               source: https://provision-bucket.s3.amazonaws.com/instance/haproxy/haproxy.cfg
-
-  EC2WaitHandle:
-    Type: AWS::CloudFormation::WaitConditionHandle
-
-  EC2WaitCondition:
-    Type: AWS::CloudFormation::WaitCondition
-    DependsOn: EC2NatGateway
-    Properties:
-      Handle: !Ref EC2WaitHandle
-      Timeout: 1000
+            /opt/src/scripts/cron-job.sh:
+              source: https://provision-bucket.s3.amazonaws.com/instance/haproxy/scripts/cron-job.sh
+              mode: "000755"
 
   EC2NatGatewayInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-        - Ref: EC2NatGatewayS3AccessRole
+        - Ref: EC2NatGatewayAccessRole
 
-  EC2NatGatewayS3AccessRole:
+  EC2NatGatewayAccessRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -428,11 +463,12 @@ Resources:
                 Action:
                   - s3:GetObject
                   - s3:ListObject
+                  - autoscaling:SetInstanceHealth
                 Resource:
-                  - "arn:aws:s3:::provision-bucket/*"  
-  
-  
-  
+                  - "arn:aws:s3:::provision-bucket/*"
+                  - !Sub arn:aws:autoscaling:${AWS::Region}:*:autoScalingGroupName/${AWS::StackName}-AutoScalingGroup*
+                  
+    
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
