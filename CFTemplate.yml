@@ -1,28 +1,62 @@
 AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  HAPROXYPORT:
+    Type: Number
+    Default: 80
+  APIPORT:
+    Type: Number
+    Default: 8080
+  HAPROXYSTATSPORT:
+    Type: Number
+    Default: 8081
+  HAPROXYRUNAPIPORT:
+    Type: Number
+    Default: 8082
+  HAPROXYVERSION:
+    Type: String
+    Default: haproxy-2.8.3
+  DOCKERUSER:
+    Type: String
+  DOCKERPASS:
+    Type: String
+    NoEcho: true
+  REGISTRYURL:
+    Type: String
+    Default: matiasvg2018/json-api
+  IMAGETAG:
+    Type: String
+    Default: 0.1
+
 Mappings:
     SubnetConfig:
       VPC:
         CIDR: "10.0.0.0/16"
       Private:
         CIDR: "10.0.1.0/24"
-
+      Public:
+        CIDR: "10.0.0.0/24"
 Resources:
+  
   VPC:
-      Type: "AWS::EC2::VPC"
-      Properties:
-        EnableDnsSupport: "true"
-        EnableDnsHostnames: "true"
-        CidrBlock:
-          Fn::FindInMap:
-            - "SubnetConfig"
-            - "VPC"
-            - "CIDR"
-
+    Type: "AWS::EC2::VPC"
+    Properties:
+      EnableDnsSupport: "true"
+      EnableDnsHostnames: "true"
+      CidrBlock:
+        Fn::FindInMap:
+          - "SubnetConfig"
+          - "VPC"
+          - "CIDR"
+  
   PrivateSubnet:
       Type: "AWS::EC2::Subnet"
       Properties:
         VpcId:
           Ref: "VPC"
+        AvailabilityZone:
+          Fn::Select:
+            - 0
+            - Fn::GetAZs: ""
         CidrBlock:
           Fn::FindInMap:
             - "SubnetConfig"
@@ -34,7 +68,7 @@ Resources:
       Properties:
         VpcId:
           Ref: "VPC"
-
+  
   PrivateSubnetRouteTableAssociation:
       Type: "AWS::EC2::SubnetRouteTableAssociation"
       Properties:
@@ -42,35 +76,415 @@ Resources:
           Ref: "PrivateSubnet"
         RouteTableId:
           Ref: "PrivateRouteTable"
+  
+  PrivateEC2SecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Enable NAT instance to access the internet
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref APIPORT
+          ToPort: !Ref APIPORT
+          SourceSecurityGroupId: !Ref NatInstanceSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !Ref NatInstanceSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !Ref EFSSecurityGroup
 
-  EC2V4XZKL:
-    Type: 'AWS::EC2::Volume'
-    Properties: 
-      Size: 50
-      AvailabilityZone: { "Fn::GetAtt" : ["EC2I4RZA6", "AvailabilityZone"] }
- 
-  EC2I4RZA6:
-    Type: 'AWS::EC2::Instance'
-    Properties: 
-      InstanceType: 't2.micro'
-      ImageId: 'ami-1853ac65'
-      SubnetId: 
-        Ref: "PrivateSubnet"
- 
-  EC2I80L5:
-    Type: 'AWS::EC2::Instance'
-    Properties:  
-      InstanceType: 't2.micro'
-      ImageId: 'ami-1853ac65'
-      SubnetId: 
-        Ref: "PrivateSubnet"
- 
-  EC2V3KIVD:
-    Type: 'AWS::EC2::Volume'
-    Properties:  
-      Size: 1
-      AvailabilityZone: { "Fn::GetAtt" : ["EC2I80L5", "AvailabilityZone"] }
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-NAT-SG
+   
+  PrivateRouteToNAT:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      InstanceId: !Ref EC2NatGateway
+
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable EFS to access the internet
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: 
+            Fn::FindInMap:
+              - "SubnetConfig"
+              - "Private"
+              - "CIDR"
 
   EFSFSEQKW:
     Type: 'AWS::EFS::FileSystem'
-    Properties: {}
+    Properties:
+      AvailabilityZoneName: { "Fn::GetAtt" : ["PrivateSubnet", "AvailabilityZone"] }
+
+  EFSMountTarget:
+    Type: 'AWS::EFS::MountTarget'
+    Properties:
+      FileSystemId: !Ref EFSFSEQKW
+      SubnetId: !Ref PrivateSubnet
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+
+  AutoScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    DependsOn: 
+      - EC2NatGateway
+      - LambdaFunction
+      - EventRule
+    Properties:
+      LaunchConfigurationName:
+        Ref: InstanceLaunchConfig
+      MinSize: 1
+      MaxSize: 3
+      DesiredCapacity: 1
+      VPCZoneIdentifier:
+        - Ref: PrivateSubnet
+
+  InstanceLaunchConfig:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+      ImageId: 'ami-1853ac65'
+      InstanceType: 't2.micro'
+      KeyName: matias_admin
+      SecurityGroups:
+        - !Ref PrivateEC2SecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -e
+          yum update -y
+          yum install -y docker
+          service docker start
+          echo "${DOCKERPASS}" | docker login --username ${DOCKERUSER} --password-stdin $REGISTRY_URL
+          # connect to efs and mount it
+          yum install -y amazon-efs-utils
+          mkdir /mnt/efs
+          mount -t efs ${EFSFSEQKW}:/ /mnt/efs
+          # run the container
+          docker run -v /mnt/efs/:/app/data -d -p 8080:8080 --name json-api matiasvg2018/json-api:${IMAGETAG}
+
+###### END OF PRIVATE STUFF ######
+
+###### START OF LAMBDA  ######
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable Lambda to access the internet
+      VpcId: !Ref VPC
+
+  LambdaFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      FunctionName: AddServerToHAProxyLambda
+      Environment:
+        Variables:
+          NEW_SERVER_PORT: !Ref APIPORT
+          HAPROXY_HOST: !GetAtt EC2NatGateway.PublicIp
+          HAPROXY_PORT: !Ref HAPROXYRUNAPIPORT
+      Code: 
+        ZipFile: |
+          const net = require('net');
+          const AWS = require('aws-sdk');
+
+          exports.handler = async (event) => {
+              const newServerPort = process.env.NEW_SERVER_PORT;
+              const haproxyHost = process.env.HAPROXY_HOST;
+              const haproxyPort = process.env.HAPROXY_PORT
+
+              const haproxyBackend = 'app-servers'
+              const instanceId = event.detail['EC2InstanceId'];
+              console.log(instanceId);
+              if(event['detail-type']==="EC2 Instance Launch Successful"){
+                  await addServer(instanceId, haproxyBackend, newServerPort, haproxyPort, haproxyHost)
+              }else{
+                  await deleteServer(instanceId, haproxyBackend, haproxyPort, haproxyHost)
+              }
+          };
+
+
+          async function addServer(instanceId, backend, newPort, port, host){
+              const newServerIp = await getInstanceIp(instanceId);
+              console.log(newServerIp);
+              var command = `add server ${backend}/${instanceId} ${newServerIp}:${newPort} check\n`;
+              await send_command(command, port, host);
+              command = `set server ${backend}/${instanceId} state ready\n`
+              await send_command(command, port, host);
+              command = `enable health ${backend}/${instanceId}\n`
+              await send_command(command, port, host);
+          }
+
+          async function deleteServer(instanceId, backend, port, host){
+              var command = `set server ${backend}/${instanceId} state maint\n`
+              await send_command(command, port, host);
+              command = `del server ${backend}/${instanceId}\n`;
+              await send_command(command, port, host);
+              console.log('Server deleted from HAProxy');
+          }
+
+          async function getInstanceIp(instanceId){
+              const params = {
+                  InstanceIds: [instanceId]
+              }
+              const ec2 = new AWS.EC2();
+              const instanceDesc = await ec2.describeInstances(params).promise();
+              return instanceDesc.Reservations[0].Instances[0].PrivateIpAddress;
+          }
+
+
+          function send_command(command, port, host){
+              const client = new net.Socket();
+              return new Promise((resolve, reject) => {
+                  client.connect(port, host, () => {
+                      console.log('Connected to HAProxy stats socket');
+                      client.write(`${command}\n`);
+                });
+
+                  client.on('data', (data) => {
+                      console.log(`Received: ${data}`);
+                      client.end();
+                      var dataStr=data.toString().trim();
+                      if ( dataStr=="" || data.includes("New") || data.includes("deleted")){
+                          resolve(data);
+                      }else{
+                          reject(`error: ${data}`)
+                      }
+                });
+
+                  client.on('error', (err) => {
+                      console.error(`Error: ${err}`);
+                      client.destroy();
+                      reject('Error adding server to HAProxy');
+                  });
+              });
+          }
+
+
+      Runtime: "nodejs14.x"
+      Timeout: 30
+
+  LambdaExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: LambdaExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+              - Effect: "Allow"
+                Action:
+                  - "ec2:DescribeInstances"
+                Resource: "*"
+
+  EventRule:
+    Type: "AWS::Events::Rule"
+    Properties:
+      Description: "Trigger Lambda on ASG instance launch"
+      EventPattern:
+        source:
+          - "aws.autoscaling"
+        detail-type:
+          - "EC2 Instance Launch Successful"
+          - "EC2 Instance Terminate Successful"
+        detail:
+          AutoScalingGroupName:
+            - prefix: !Sub ${AWS::StackName}-AutoScalingGroup
+      State: "ENABLED"
+      Targets:
+        - Arn: !GetAtt LambdaFunction.Arn
+          Id: "AddServerToHAProxyLambdaTarget"
+
+  InvokePermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt EventRule.Arn
+
+###### END OF LAMBDA ######
+
+###### START OF PUBLIC STUFF ######
+  NatInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable NAT instance to access the internet
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref HAPROXYPORT
+          ToPort: !Ref HAPROXYPORT
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: !Ref HAPROXYSTATSPORT
+          ToPort: !Ref HAPROXYSTATSPORT
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: !Ref HAPROXYRUNAPIPORT
+          ToPort: !Ref HAPROXYRUNAPIPORT
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 
+            Fn::FindInMap:
+              - "SubnetConfig"
+              - "Private"
+              - "CIDR"
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-NAT-SG
+  
+  PublicSubnet:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId:
+        Ref: "VPC"
+      MapPublicIpOnLaunch: true
+      CidrBlock:
+        Fn::FindInMap:
+          - "SubnetConfig"
+          - "Public"
+          - "CIDR"
+  
+  PublicRouteTable:
+      Type: "AWS::EC2::RouteTable"
+      Properties:
+        VpcId:
+          Ref: "VPC"
+  
+  PublicSubnetRouteTableAssociation:
+      Type: "AWS::EC2::SubnetRouteTableAssociation"
+      Properties:
+        SubnetId:
+          Ref: "PublicSubnet"
+        RouteTableId:
+          Ref: "PublicRouteTable"
+
+  EC2NatGateway:
+    Type: 'AWS::EC2::Instance'
+    Properties: 
+      InstanceType: 't2.micro'
+      ImageId: 'ami-1853ac65'
+      KeyName: matias_admin
+      SourceDestCheck: false
+      IamInstanceProfile: !Ref EC2NatGatewayInstanceProfile
+      SubnetId: 
+        Ref: "PublicSubnet"
+      SecurityGroupIds:
+        - !Ref NatInstanceSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -e
+          echo 1 > /proc/sys/net/ipv4/ip_forward
+          /sbin/iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+          /sbin/iptables-save > /etc/sysconfig/iptables
+          yum update -y
+          yum install -y aws-cfn-bootstrap gcc socat
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource EC2NatGateway --region ${AWS::Region}
+          export HAPROXY_PORT=${HAPROXYPORT}
+          export HAPROXY_STATS_PORT=${HAPROXYSTATSPORT}
+          export HAPROXY_RUN_API_PORT=${HAPROXYRUNAPIPORT}
+          cd /opt/src/haproxy/${HAPROXYVERSION}
+          make TARGET=generic && make install
+          ./haproxy -f /etc/haproxy/haproxy.cfg -D
+          echo "*/3 * * * * /opt/src/scripts/cron-job.sh" | crontab -
+          service crond start
+
+    Metadata:
+      AWS::CloudFormation::Authentication:
+        S3AccessCreds:
+          type: S3
+          roleName: !Ref EC2NatGatewayAccessRole
+          buckets: 
+            - provision-bucket
+      AWS::CloudFormation::Init:
+        config:
+          sources:
+            /opt/src/haproxy: !Sub https://provision-bucket.s3.amazonaws.com/instance/haproxy/${HAPROXYVERSION}.tar.gz
+          files:
+            /etc/haproxy/haproxy.cfg:
+              source: https://provision-bucket.s3.amazonaws.com/instance/haproxy/haproxy.cfg
+            /opt/src/scripts/cron-job.sh:
+              source: https://provision-bucket.s3.amazonaws.com/instance/haproxy/scripts/cron-job.sh
+              mode: "000755"
+
+  EC2NatGatewayInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - Ref: EC2NatGatewayAccessRole
+
+  EC2NatGatewayAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: S3AccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListObject
+                  - autoscaling:SetInstanceHealth
+                Resource:
+                  - "arn:aws:s3:::provision-bucket/*"
+                  - !Sub arn:aws:autoscaling:${AWS::Region}:*:autoScalingGroupName/${AWS::StackName}-AutoScalingGroup*
+                  
+    
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-IGW
+  
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  
+  RouteToInternetGW:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
