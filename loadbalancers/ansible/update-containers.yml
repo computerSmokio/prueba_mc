@@ -23,6 +23,12 @@
     - name: print ips
       debug:
         var: asg_instance_ips
+    - name: login to docker hub
+      docker_login:
+        username: "{{ docker_username }}"
+        password: "{{ docker_password }}"
+        docker_host: "tcp://{{ item }}:2375"
+      loop: "{{ asg_instance_ips }}"
     - name: Finer container restart/update control
       community.docker.docker_container:
         docker_host: "tcp://{{ item }}:2375"

@@ -166,11 +166,14 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash -e
           TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
-          instanceIp=curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/local-ipv4
-          echo "{ "hosts": ["unix:///var/run/docker.sock", "tcp://${!instanceIp}:2375"] }" > /etc/docker/daemon.json
+          instanceIp=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/local-ipv4)
+          mkdir /etc/docker /etc/systemd/system/docker.service.d
+          echo -e "[Service]\nExecStart=\nExecStart=/usr/bin/dockerd" > /etc/systemd/system/docker.service.d/override.conf
+          echo "{ \"hosts\": [\"unix:///var/run/docker.sock\", \"tcp://${!instanceIp}:2375\"] }" > /etc/docker/daemon.json
           yum update -y
           yum install -y docker amazon-efs-utils
           systemctl start docker
+          systemctl enable docker
           echo "${DOCKERPASS}" | docker login --username ${DOCKERUSER} --password-stdin $REGISTRY_URL
           # connect to efs and mount it
           mkdir /mnt/efs
@@ -409,20 +412,26 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash -e
-          echo 1 > /proc/sys/net/ipv4/ip_forward
-          /sbin/iptables -t nat -A POSTROUTING -o enX0 -s 0.0.0.0/0 -j MASQUERADE
-          /sbin/iptables-save > /etc/sysconfig/iptables
           yum update -y
-          yum install -y aws-cfn-bootstrap socat cronie haproxy iptables
+          yum install -y aws-cfn-bootstrap socat cronie haproxy iptables iptables-services
+          echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.conf
+          sysctl -p
+          iptables -t nat -A POSTROUTING -o enX0 -s 0.0.0.0/0 -j MASQUERADE
+          service iptables save
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource EC2NatGateway --region ${AWS::Region}
-          export HAPROXY_PORT=${HAPROXYPORT}
-          export HAPROXY_STATS_PORT=${HAPROXYSTATSPORT}
-          export HAPROXY_RUN_API_PORT=${HAPROXYRUNAPIPORT}
+          echo HAPROXY_PORT=${HAPROXYPORT} >> /etc/sysconfig/haproxy
+          echo HAPROXY_STATS_PORT=${HAPROXYSTATSPORT} >> /etc/sysconfig/haproxy 
+          echo HAPROXY_RUN_API_PORT=${HAPROXYRUNAPIPORT} >> /etc/sysconfig/haproxy 
           systemctl start haproxy.service
           systemctl enable haproxy.service
           systemctl enable crond
-          echo "*/3 * * * * /opt/src/scripts/cron-job.sh" | crontab -
+          echo "*/5 * * * * /opt/src/scripts/cron-job.sh" | crontab -
           systemctl start crond
+
+          yum install -y python3 pip
+          pip install boto3
+          python3 -m pip install --user pipx
+          pipx install --include-deps ansible
 
     Metadata:
       AWS::CloudFormation::Authentication:
@@ -461,7 +470,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: S3AccessPolicy
+        - PolicyName: BucketAccessAutoScalingSetHealth
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -470,10 +479,18 @@ Resources:
                   - s3:GetObject
                   - s3:ListObject
                   - autoscaling:SetInstanceHealth
+                  - ec2:DescribeInstances
                 Resource:
                   - "arn:aws:s3:::provision-bucket/*"
                   - !Sub arn:aws:autoscaling:${AWS::Region}:*:autoScalingGroupName/${AWS::StackName}-AutoScalingGroup*
-                  
+        - PolicyName: DescribeInstances
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                Resource: "*"
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
