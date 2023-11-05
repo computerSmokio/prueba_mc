@@ -38,7 +38,7 @@ jobs:
         key: ${{secrets.SSH_PRIVATE_KEY}}
         # Optional, literal inventory file contents
         inventory: |
-          [all]
+          [bastion]
           ${{ github.event.inputs.bastion_ip }}        
           # Optional, SSH known hosts file content
         options: |
