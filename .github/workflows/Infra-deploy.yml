@@ -1,5 +1,4 @@
 name: Deploy CloudFormation Stack
-
 on:
   pull_request:
     branches:
@@ -19,8 +18,6 @@ on:
         options:
           - 'PROD'
           - 'DEV'
-      
-
 jobs:
   deploy-qa:
     runs-on: ubuntu-latest
@@ -54,14 +51,13 @@ jobs:
               HAPROXYVERSION=${{ vars.HAPROXY_VERSION }}
               REGISTRYURL=${{ vars.REGISTRY_URL }}
               ENVIRONMENT=QA
-  
   deploy-manual:
     runs-on: ubuntu-latest
     needs: unit-test
     if: |
       github.event_name == 'workflow_dispatch' && (
-        (github.event.inputs.my_input == 'prod' && github.ref == 'refs/heads/main') ||
-        (github.event.inputs.my_input != 'prod')
+        (github.event.inputs.environment == 'prod' && github.ref == 'refs/heads/main') ||
+        (github.event.inputs.environment != 'prod')
       )    
     steps:
       - name: Checkout Repository
@@ -90,4 +86,4 @@ jobs:
               HAPROXYRUNAPIPORT=${{ vars.HAPROXY_RUN_API_PORT }}
               HAPROXYVERSION=${{ vars.HAPROXY_VERSION }}
               REGISTRYURL=${{ vars.REGISTRY_URL }}
-              ENVIRONMENT=${{ inputs.environment }}
+              ENVIRONMENT=${{ github.event.inputs.environment }}
