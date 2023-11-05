@@ -1,5 +1,10 @@
 name: Deploy new containers
 on:
+  push:
+    branches:
+      - workflows-n-pipes
+    paths:
+      - 'ansible/**'
   workflow_dispatch:
     branches:
       - workflows-n-pipes
