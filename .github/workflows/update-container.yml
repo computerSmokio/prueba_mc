@@ -48,3 +48,4 @@ jobs:
           -e docker_password=${{ secrets.DOCKERPASS }}
           --user ec2-user
           --ssh-extra-args "-o StrictHostKeyChecking=no"
+          --verbose
