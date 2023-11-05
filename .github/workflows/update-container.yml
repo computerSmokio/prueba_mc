@@ -46,6 +46,5 @@ jobs:
           -e docker_tag=${{ github.event.inputs.docker_tag }}
           -e docker_username=${{ secrets.DOCKERUSER }} 
           -e docker_password=${{ secrets.DOCKERPASS }}
-      env:
-        ANSIBLE_REMOTE_USER: ec2-user
-        ANSIBLE_HOST_KEY_CHECKING: False
+          --user ec2-user
+          --ssh-extra-args "-o StrictHostKeyChecking=no"
