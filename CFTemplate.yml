@@ -450,6 +450,8 @@ Resources:
               mode: "000755"
             /opt/src/playbooks/update-containers.yml:
               source: https://provision-bucket.s3.amazonaws.com/instance/playbooks/update-containers.yml
+            /opt/src/playbooks/start-update.yml:
+              source: https://provision-bucket.s3.amazonaws.com/instance/playbooks/start-update.yml
 
   EC2NatGatewayInstanceProfile:
     Type: AWS::IAM::InstanceProfile

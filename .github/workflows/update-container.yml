@@ -1,0 +1,41 @@
+name: Deploy new containers
+on:
+  workflow_dispatch:
+    branches:
+      - workflows-n-pipes
+    inputs:
+      bastion_ip:
+        description: 'Bastion IP'
+        required: true
+      docker_image:
+        description: 'Docker image'
+        required: true
+        default: 'matiasvg2018/json-api'
+      docker_tag:
+        description: 'Image tag'
+        required: true
+        default: '0.1'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Run playbook
+      uses: dawidd6/action-ansible-playbook@v2
+      with:
+        # Required, playbook filepath
+        playbook: start-update.yml
+        # Optional, directory where playbooks live
+        directory: ../ansible
+        # Optional, SSH private key
+        key: ${{secrets.SSH_PRIVATE_KEY}}
+        # Optional, literal inventory file contents
+        inventory: |
+          [all]
+          ${{ github.event.inputs.bastion_ip }}        
+          # Optional, SSH known hosts file content
+        options: |
+          -e docker_image=${{ github.event.inputs.docker_image }}
+          -e docker_tag=${{ github.event.inputs.docker_tag }}
+          -e docker_username=${{ secrets.DOCKERUSER }} 
+          -e docker_password=${{ secrets.DOCKERPASS }}

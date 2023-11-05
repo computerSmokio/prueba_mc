@@ -1,0 +1,49 @@
+
+- name: login to docker hub
+  docker_login:
+    username: "{{ docker_username }}"
+    password: "{{ docker_password }}"
+    docker_host: "tcp://{{ item }}:2375"
+- name: Obtener información del contenedor Docker existente
+  community.docker.docker_container_info:
+    name: json-api
+    docker_host: "tcp://{{ item }}:2375"
+  register: container_info
+  ignore_errors: yes
+- name: print container info
+  debug:
+    var: container_info
+- name: transform env list to dict
+  set_fact:
+    env_docker: "{{ env | default({}) | combine({item.split('=')[0]: item.split('=')[1]}) }}"
+  loop: "{{ container_info.container.Config.Env }}"
+- name: Transform JSON to a list
+  set_fact:
+    transformed_ports: "{{ container_info.container.Config.ExposedPorts | dict2items | map(attribute='key') | map('regex_replace', '(.+)/tcp', '\\1:\\1') | list }}"
+- name: Print the transformed list
+  debug:
+    var: transformed_ports
+- name: Transformar la estructura Mount
+  set_fact:
+    modified_mounts: "{{ modified_mounts | default([]) + [{'target': item.Destination, 'source': item.Source, 'read_only': false, 'type': 'bind' }] }}"
+  loop: "{{ container_info.container.Mounts }}"
+  loop_control:
+    label: "{{ item.Destination }}"
+- name: Mostrar la estructura JSON modificada
+  debug:
+    var: modified_mounts
+- name: Finer container restart/update control
+  community.docker.docker_container:
+    docker_host: "tcp://{{ item }}:2375"
+    name: json-api
+    image: "{{ docker_image }}:{{ docker_tag }}"
+    state: started
+    recreate: yes
+    env: "{{ env_docker }}"
+    mounts: "{{ modified_mounts }}"
+    ports: "{{ transformed_ports }}"
+    comparisons:
+      image: strict
+      env: allow_more_present
+      volumes: allow_more_present
+      ports: allow_more_present
