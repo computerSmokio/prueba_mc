@@ -20,7 +20,7 @@ on:
         description: 'Image tag'
         required: true
         default: '0.1'
-    pull_request:
+  pull_request:
 jobs:
   deploy:
     runs-on: ubuntu-latest
