@@ -32,6 +32,7 @@
 - name: Mostrar la estructura JSON modificada
   debug:
     var: modified_mounts
+
 - name: Finer container restart/update control
   community.docker.docker_container:
     docker_host: "tcp://{{ item }}:2375"
