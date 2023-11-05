@@ -31,7 +31,7 @@ jobs:
         # Required, playbook filepath
         playbook: start-update.yml
         # Optional, directory where playbooks live
-        directory: ../ansible
+        directory: /ansible
         # Optional, SSH private key
         key: ${{secrets.SSH_PRIVATE_KEY}}
         # Optional, literal inventory file contents
