@@ -1,0 +1,10 @@
+#!/bin/sh                                                                                                                                                                                                       
+                                                                                                                                                                                                                
+#port on which the TCP server will listen                                                                                                                                                                       
+TCP_PORT=660                                                                                                                                                                                                    
+                                                                                                                                                                                                                
+# HAProxy stats socket path                                                                                                                                                                                     
+HAPROXY_SOCKET="/var/run/haproxy/haproxy.sock"                                                                                                                                                                  
+                                                                                                                                                                                                                                                                                                                                                
+# Start the TCP server                                                                                                                                                                                          
+nc -l -p "$TCP_PORT" -k -e ./handle_commands_haproxy.sh

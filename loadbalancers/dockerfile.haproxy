@@ -1,0 +1,6 @@
+from haproxy:2.8-alpine3.18
+USER root
+run mkdir /var/run/haproxy | true
+run chown -R haproxy:haproxy /var/run/haproxy &&\
+ chmod -R 700 /var/run/haproxy
+copy haproxy.cfg /usr/local/etc/haproxy/haproxy.cfg
