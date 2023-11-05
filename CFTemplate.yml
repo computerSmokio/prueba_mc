@@ -95,6 +95,10 @@ Resources:
           FromPort: 2049
           ToPort: 2049
           SourceSecurityGroupId: !Ref EFSSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 2375
+          ToPort: 2375
+          SourceSecurityGroupId: !Ref NatInstanceSecurityGroup
 
       Tags:
         - Key: Name
@@ -153,7 +157,7 @@ Resources:
   InstanceLaunchConfig:
     Type: 'AWS::AutoScaling::LaunchConfiguration'
     Properties:
-      ImageId: 'ami-1853ac65'
+      ImageId: 'ami-05c13eab67c5d8861'
       InstanceType: 't2.micro'
       KeyName: matias_admin
       SecurityGroups:
@@ -161,12 +165,14 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash -e
+          TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
+          instanceIp=curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/local-ipv4
+          echo "{ "hosts": ["unix:///var/run/docker.sock", "tcp://${!instanceIp}:2375"] }" > /etc/docker/daemon.json
           yum update -y
-          yum install -y docker
-          service docker start
+          yum install -y docker amazon-efs-utils
+          systemctl start docker
           echo "${DOCKERPASS}" | docker login --username ${DOCKERUSER} --password-stdin $REGISTRY_URL
           # connect to efs and mount it
-          yum install -y amazon-efs-utils
           mkdir /mnt/efs
           mount -t efs ${EFSFSEQKW}:/ /mnt/efs
           # run the container
@@ -392,7 +398,7 @@ Resources:
     Type: 'AWS::EC2::Instance'
     Properties: 
       InstanceType: 't2.micro'
-      ImageId: 'ami-1853ac65'
+      ImageId: 'ami-05c13eab67c5d8861'
       KeyName: matias_admin
       SourceDestCheck: false
       IamInstanceProfile: !Ref EC2NatGatewayInstanceProfile
@@ -404,19 +410,19 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash -e
           echo 1 > /proc/sys/net/ipv4/ip_forward
-          /sbin/iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+          /sbin/iptables -t nat -A POSTROUTING -o enX0 -s 0.0.0.0/0 -j MASQUERADE
           /sbin/iptables-save > /etc/sysconfig/iptables
           yum update -y
-          yum install -y aws-cfn-bootstrap gcc socat
+          yum install -y aws-cfn-bootstrap socat cronie haproxy iptables
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource EC2NatGateway --region ${AWS::Region}
           export HAPROXY_PORT=${HAPROXYPORT}
           export HAPROXY_STATS_PORT=${HAPROXYSTATSPORT}
           export HAPROXY_RUN_API_PORT=${HAPROXYRUNAPIPORT}
-          cd /opt/src/haproxy/${HAPROXYVERSION}
-          make TARGET=generic && make install
-          ./haproxy -f /etc/haproxy/haproxy.cfg -D
+          systemctl start haproxy.service
+          systemctl enable haproxy.service
+          systemctl enable crond
           echo "*/3 * * * * /opt/src/scripts/cron-job.sh" | crontab -
-          service crond start
+          systemctl start crond
 
     Metadata:
       AWS::CloudFormation::Authentication:
@@ -427,14 +433,14 @@ Resources:
             - provision-bucket
       AWS::CloudFormation::Init:
         config:
-          sources:
-            /opt/src/haproxy: !Sub https://provision-bucket.s3.amazonaws.com/instance/haproxy/${HAPROXYVERSION}.tar.gz
           files:
             /etc/haproxy/haproxy.cfg:
               source: https://provision-bucket.s3.amazonaws.com/instance/haproxy/haproxy.cfg
             /opt/src/scripts/cron-job.sh:
               source: https://provision-bucket.s3.amazonaws.com/instance/haproxy/scripts/cron-job.sh
               mode: "000755"
+            /opt/src/playbooks/update-containers.yml:
+              source: https://provision-bucket.s3.amazonaws.com/instance/playbooks/update-containers.yml
 
   EC2NatGatewayInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -468,7 +474,6 @@ Resources:
                   - "arn:aws:s3:::provision-bucket/*"
                   - !Sub arn:aws:autoscaling:${AWS::Region}:*:autoScalingGroupName/${AWS::StackName}-AutoScalingGroup*
                   
-    
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
@@ -488,3 +493,8 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
+
+Outputs:
+  IpLoadBalancer:
+    Description: Public Ip of Haproxy load balancer
+    Value: !GetAtt EC2NatGateway.PublicIp
