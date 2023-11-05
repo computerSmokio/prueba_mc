@@ -36,7 +36,7 @@ jobs:
       - name: Deploy CloudFormation Stack
         run: |
           aws cloudformation deploy \
-            --template-file cloudformation-template.yaml \
+            --template-file CFTemplate.yml\
             --stack-name jsonApiStack \
             --capabilities CAPABILITY_IAM \
             --parameter-overrides \
