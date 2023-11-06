@@ -4,3 +4,4 @@ gunicorn==21.2.0
 python-dotenv==1.0.0
 coverage==7.3.2
 pytest==7.4.3
+falcon-swagger-ui==1.2.2
