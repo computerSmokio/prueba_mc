@@ -62,12 +62,12 @@ jobs:
       - name: Build and push Docker images with PR number
         if: ${{ github.event_name == 'workflows-n-pipes' }}
         run: |
-          docker build -t ${{ secrets.DOCKERUSER }}/json-api:qa-${{ GITHUB_SHA }} .
-          docker push ${{ secrets.DOCKERUSER }}/json-api:qa-${{ GITHUB_SHA }}
+          docker build -t ${{ secrets.DOCKERUSER }}/json-api:qa-$GITHUB_SHA .
+          docker push ${{ secrets.DOCKERUSER }}/json-api:qa-$GITHUB_SHA
   deploy_new_container:
     uses: ./.github/workflows/update-container.yml
     with:
-      docker_tag: qa-${{ GITHUB_SHA }}
+      docker_tag: qa-$GITHUB_SHA
       environment: 'QA'
       bastion_ip: ${{ variables.QA_BASTION_IP }}
       stack_name: ${{ variables.STACK_NAME }}
