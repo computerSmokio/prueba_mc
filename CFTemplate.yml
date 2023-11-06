@@ -26,6 +26,13 @@ Parameters:
   IMAGETAG:
     Type: String
     Default: 0.1
+  ENVIRONMENT:
+    Type: String
+    Default: PROD
+    AllowedValues:
+      - PROD
+      - QA
+      - DEV
 
 Mappings:
     SubnetConfig:
@@ -47,6 +54,9 @@ Resources:
           - "SubnetConfig"
           - "VPC"
           - "CIDR"
+      Tags:
+        - Key: Name
+          Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-VPC
   
   PrivateSubnet:
       Type: "AWS::EC2::Subnet"
@@ -62,12 +72,18 @@ Resources:
             - "SubnetConfig"
             - "Private"
             - "CIDR"
+        Tags:
+          - Key: Name
+            Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-PrivateSubnet
   
   PrivateRouteTable:
       Type: "AWS::EC2::RouteTable"
       Properties:
         VpcId:
           Ref: "VPC"
+        Tags:
+          - Key: Name
+            Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-PrivateRouteTable
   
   PrivateSubnetRouteTableAssociation:
       Type: "AWS::EC2::SubnetRouteTableAssociation"
@@ -80,6 +96,9 @@ Resources:
   PrivateEC2SecurityGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-NAT-SG
       GroupDescription: Enable NAT instance to access the internet
       VpcId: !Ref VPC
       SecurityGroupIngress:
@@ -99,10 +118,6 @@ Resources:
           FromPort: 2375
           ToPort: 2375
           SourceSecurityGroupId: !Ref NatInstanceSecurityGroup
-
-      Tags:
-        - Key: Name
-          Value: !Sub ${AWS::StackName}-NAT-SG
    
   PrivateRouteToNAT:
     Type: AWS::EC2::Route
@@ -110,7 +125,7 @@ Resources:
       RouteTableId: !Ref PrivateRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       InstanceId: !Ref EC2NatGateway
-
+    
   EFSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -125,12 +140,16 @@ Resources:
               - "SubnetConfig"
               - "Private"
               - "CIDR"
-
+      Tags:
+        - Key: Name
+          Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-EFS-SG
   EFSFSEQKW:
     Type: 'AWS::EFS::FileSystem'
     Properties:
       AvailabilityZoneName: { "Fn::GetAtt" : ["PrivateSubnet", "AvailabilityZone"] }
-
+      FileSystemTags:
+        - Key: Name
+          Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-EFS
   EFSMountTarget:
     Type: 'AWS::EFS::MountTarget'
     Properties:
@@ -153,6 +172,44 @@ Resources:
       DesiredCapacity: 1
       VPCZoneIdentifier:
         - Ref: PrivateSubnet
+      Tags:
+        - Key: Name
+          Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-AutoScalingGroup
+          PropagateAtLaunch: true
+
+  DockerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - Ref: DockerInstanceRole
+
+  DockerInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-DockerInstanceRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: LogToCloudwatchDocker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - "arn:aws:logs:*:*:*"
 
   InstanceLaunchConfig:
     Type: 'AWS::AutoScaling::LaunchConfiguration'
@@ -160,6 +217,7 @@ Resources:
       ImageId: 'ami-05c13eab67c5d8861'
       InstanceType: 't2.micro'
       KeyName: matias_admin
+      IamInstanceProfile: !Ref DockerInstanceProfile
       SecurityGroups:
         - !Ref PrivateEC2SecurityGroup
       UserData:
@@ -179,7 +237,13 @@ Resources:
           mkdir /mnt/efs
           mount -t efs ${EFSFSEQKW}:/ /mnt/efs
           # run the container
-          docker run -v /mnt/efs/:/app/data -d -p 8080:8080 --name json-api matiasvg2018/json-api:${IMAGETAG}
+          docker run -v /mnt/efs/:/app/data -d -p 8080:8080 --log-driver=awslogs --log-opt awslogs-region=us-east-1 --log-opt awslogs-group=${ENVIRONMENT}-${AWS::StackName}-DockerLogGroup --name json-api matiasvg2018/json-api:${IMAGETAG}
+
+  DockerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${ENVIRONMENT}-${AWS::StackName}-DockerLogGroup
+      RetentionInDays: 7 
 
 ###### END OF PRIVATE STUFF ######
 
@@ -195,7 +259,7 @@ Resources:
     Properties:
       Handler: index.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      FunctionName: AddServerToHAProxyLambda
+      FunctionName: !Sub AddServerToHAProxyLambda${ENVIRONMENT}
       Environment:
         Variables:
           NEW_SERVER_PORT: !Ref APIPORT
@@ -285,6 +349,9 @@ Resources:
   LambdaExecutionRole:
     Type: "AWS::IAM::Role"
     Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-LambdaExecutionRole
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -325,6 +392,7 @@ Resources:
       Targets:
         - Arn: !GetAtt LambdaFunction.Arn
           Id: "AddServerToHAProxyLambdaTarget"
+      Name: !Sub ${ENVIRONMENT}-${AWS::StackName}-EventRule
 
   InvokePermission:
     Type: "AWS::Lambda::Permission"
@@ -369,7 +437,7 @@ Resources:
               - "CIDR"
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}-NAT-SG
+          Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-NAT-SG
   
   PublicSubnet:
     Type: "AWS::EC2::Subnet"
@@ -382,13 +450,17 @@ Resources:
           - "SubnetConfig"
           - "Public"
           - "CIDR"
-  
+      Tags:
+        - Key: Name
+          Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-PublicSubnet
   PublicRouteTable:
       Type: "AWS::EC2::RouteTable"
       Properties:
         VpcId:
           Ref: "VPC"
-  
+        Tags:
+          - Key: Name
+            Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-PublicRouteTable
   PublicSubnetRouteTableAssociation:
       Type: "AWS::EC2::SubnetRouteTableAssociation"
       Properties:
@@ -405,6 +477,9 @@ Resources:
       KeyName: matias_admin
       SourceDestCheck: false
       IamInstanceProfile: !Ref EC2NatGatewayInstanceProfile
+      Tags:
+        - Key: Name
+          Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-EC2NatGateway
       SubnetId: 
         Ref: "PublicSubnet"
       SecurityGroupIds:
@@ -430,8 +505,6 @@ Resources:
 
           yum install -y python3 pip
           pip install boto3
-          python3 -m pip install --user pipx
-          pipx install --include-deps ansible
 
     Metadata:
       AWS::CloudFormation::Authentication:
@@ -448,10 +521,6 @@ Resources:
             /opt/src/scripts/cron-job.sh:
               source: https://provision-bucket.s3.amazonaws.com/instance/haproxy/scripts/cron-job.sh
               mode: "000755"
-            /opt/src/playbooks/update-containers.yml:
-              source: https://provision-bucket.s3.amazonaws.com/instance/playbooks/update-containers.yml
-            /opt/src/playbooks/start-update.yml:
-              source: https://provision-bucket.s3.amazonaws.com/instance/playbooks/start-update.yml
 
   EC2NatGatewayInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -462,6 +531,9 @@ Resources:
   EC2NatGatewayAccessRole:
     Type: AWS::IAM::Role
     Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-EC2NatGatewayAccessRole
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -498,7 +570,7 @@ Resources:
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}-IGW
+          Value: !Sub ${ENVIRONMENT}-${AWS::StackName}-IGW
   
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
