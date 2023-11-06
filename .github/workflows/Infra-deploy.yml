@@ -54,8 +54,8 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'workflow_dispatch' && (
-        (github.event.inputs.environment == 'prod' && github.ref == 'refs/heads/main') ||
-        (github.event.inputs.environment != 'prod')
+        (github.event.inputs.environment == 'PROD' && github.ref == 'refs/heads/main') ||
+        (github.event.inputs.environment != 'PROD')
       )    
     steps:
       - name: Checkout Repository

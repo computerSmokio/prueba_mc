@@ -1,10 +1,5 @@
 name: Deploy new containers
 on:
-  push:
-    branches:
-      - workflows-n-pipes
-    paths:
-      - 'ansible/**'
   workflow_dispatch:
     branches:
       - workflows-n-pipes
@@ -32,7 +27,30 @@ on:
           - 'PROD'
           - 'QA'
           - 'DEV'
-  pull_request:
+  workflow_call:
+    inputs:
+      docker_tag:
+        description: 'Image tag'
+        required: true
+        default: '0.1'
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'QA'
+        options:
+          - 'PROD'
+          - 'QA'
+          - 'DEV'
+      stack_name:
+        description: 'Stack name'
+        required: true
+        default: 'app-stack'
+      bastion_ip:
+        description: 'Bastion IP'
+        required: true
+      
+
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -49,7 +67,7 @@ jobs:
           [bastion]
           ${{ github.event.inputs.bastion_ip }}
         options: |
-          -e docker_image=${{ github.event.inputs.docker_image }}
+          -e docker_image=${{ github.event.inputs.docker_image || variables.DOCKER_IMAGE }}
           -e docker_tag=${{ github.event.inputs.docker_tag }}
           -e docker_username=${{ secrets.DOCKERUSER }} 
           -e docker_password=${{ secrets.DOCKERPASS }}
