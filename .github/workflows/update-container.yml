@@ -20,6 +20,10 @@ on:
         description: 'Image tag'
         required: true
         default: '0.1'
+      stack_name:
+        description: 'Stack name'
+        required: true
+        default: 'app-stack'
   pull_request:
 jobs:
   deploy:
@@ -46,6 +50,7 @@ jobs:
           -e docker_tag=${{ github.event.inputs.docker_tag }}
           -e docker_username=${{ secrets.DOCKERUSER }} 
           -e docker_password=${{ secrets.DOCKERPASS }}
+          -e stack_name=${{ github.event.inputs.stack_name }}
           --user ec2-user
           --ssh-extra-args "-o StrictHostKeyChecking=no"
           --verbose
