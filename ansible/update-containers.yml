@@ -32,7 +32,6 @@
 - name: Mostrar la estructura JSON modificada
   debug:
     var: modified_mounts
-
 - name: Finer container restart/update control
   community.docker.docker_container:
     docker_host: "tcp://{{ item }}:2375"
@@ -43,6 +42,8 @@
     env: "{{ env_docker }}"
     mounts: "{{ modified_mounts }}"
     ports: "{{ transformed_ports }}"
+    log_driver: "{{ container_info.container.HostConfig.LogConfig.Type }}"
+    log_options: "{{ container_info.container.HostConfig.LogConfig.Config }}"
     comparisons:
       image: strict
       env: allow_more_present
