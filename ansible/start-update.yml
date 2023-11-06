@@ -7,7 +7,7 @@
       amazon.aws.ec2_instance_info:
         region: us-east-1
         filters:
-          "tag:aws:autoscaling:groupName": "{{ environment }}-{{ stack_name }}*"
+          "tag:Name": "{{ environment }}-{{ stack_name }}*"
       register: ec2_instances_info
 
     - name: Print EC2 instance information
