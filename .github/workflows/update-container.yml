@@ -27,30 +27,7 @@ on:
           - 'PROD'
           - 'QA'
           - 'DEV'
-  workflow_call:
-    inputs:
-      docker_tag:
-        description: 'Image tag'
-        required: true
-        default: '0.1'
-      environment:
-        description: 'Environment'
-        required: true
-        default: 'QA'
-        options:
-          - 'PROD'
-          - 'QA'
-          - 'DEV'
-      stack_name:
-        description: 'Stack name'
-        required: true
-        default: 'app-stack'
-      bastion_ip:
-        description: 'Bastion IP'
-        required: true
       
-
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
