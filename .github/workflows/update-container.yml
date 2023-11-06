@@ -24,6 +24,14 @@ on:
         description: 'Stack name'
         required: true
         default: 'app-stack'
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'PROD'
+        options:
+          - 'PROD'
+          - 'QA'
+          - 'DEV'
   pull_request:
 jobs:
   deploy:
@@ -51,6 +59,7 @@ jobs:
           -e docker_username=${{ secrets.DOCKERUSER }} 
           -e docker_password=${{ secrets.DOCKERPASS }}
           -e stack_name=${{ github.event.inputs.stack_name }}
+          -e environment=${{ github.event.inputs.environment }}
           --user ec2-user
           --ssh-extra-args "-o StrictHostKeyChecking=no"
           --verbose
