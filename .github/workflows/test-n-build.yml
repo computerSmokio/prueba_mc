@@ -69,6 +69,6 @@ jobs:
     with:
       docker_tag: qa-$GITHUB_SHA
       environment: 'QA'
-      bastion_ip: ${{ variables.QA_BASTION_IP }}
-      stack_name: ${{ variables.STACK_NAME }}
+      bastion_ip: ${{ vars.QA_BASTION_IP }}
+      stack_name: ${{ vars.STACK_NAME }}
 

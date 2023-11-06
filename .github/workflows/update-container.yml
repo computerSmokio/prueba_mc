@@ -67,7 +67,7 @@ jobs:
           [bastion]
           ${{ github.event.inputs.bastion_ip }}
         options: |
-          -e docker_image=${{ github.event.inputs.docker_image || variables.DOCKER_IMAGE }}
+          -e docker_image=${{ github.event.inputs.docker_image || vars.DOCKER_IMAGE }}
           -e docker_tag=${{ github.event.inputs.docker_tag }}
           -e docker_username=${{ secrets.DOCKERUSER }} 
           -e docker_password=${{ secrets.DOCKERPASS }}
