@@ -5,11 +5,11 @@
   tasks:
     - name: Fetch EC2 instance details
       amazon.aws.ec2_instance_info:
-        region: us-east-1
+        region: "{{ aws_region }}"
         filters:
-          "tag:Name": "{{ environment }}-{{ stack_name }}*"
+          "tag:Name": "{{ environ }}-{{ stack_name }}-*"
+          "tag:aws:autoscaling:groupName": "{{ stack_name }}-*"
       register: ec2_instances_info
-
     - name: Print EC2 instance information
       debug:
         var: ec2_instances_info
