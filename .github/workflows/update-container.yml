@@ -1,0 +1,56 @@
+name: Deploy new containers
+on:
+  workflow_dispatch:
+    branches:
+      - workflows-n-pipes
+    inputs:
+      bastion_ip:
+        description: 'Bastion IP'
+        required: true
+      docker_image:
+        description: 'Docker image'
+        required: true
+        default: 'matiasvg2018/json-api'
+      docker_tag:
+        description: 'Image tag'
+        required: true
+        default: '0.1'
+      stack_name:
+        description: 'Stack name'
+        required: true
+        default: 'app-stack'
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'PROD'
+        options:
+          - 'PROD'
+          - 'QA'
+          - 'DEV'
+      
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v2
+    - name: Run playbook
+      uses: dawidd6/action-ansible-playbook@v2
+      with:
+        playbook: start-update.yml
+        directory: ansible
+        key: ${{secrets.SSH_PRIVATE_KEY}}
+        inventory: |
+          [bastion]
+          ${{ github.event.inputs.bastion_ip }}
+        options: |
+          -e docker_image=${{ github.event.inputs.docker_image || vars.DOCKER_IMAGE }}
+          -e docker_tag=${{ github.event.inputs.docker_tag }}
+          -e docker_username=${{ secrets.DOCKERUSER }} 
+          -e docker_password=${{ secrets.DOCKERPASS }}
+          -e stack_name=${{ github.event.inputs.stack_name }}
+          -e environ=${{ github.event.inputs.environment }}
+          -e aws_region=${{ secrets.AWS_REGION }}
+          --user ec2-user
+          --ssh-extra-args "-o StrictHostKeyChecking=no"
+          --verbose

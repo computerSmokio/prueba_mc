@@ -17,7 +17,7 @@ def create_test():
     from falcon import API as falcon_api
     
     """Create falcon API for testing (it doesn't work with app object for some weird reason)"""
-    api = falcon_api(middleware=[LoggerMiddleware()])
+    api = falcon_api()
     setup_routes(api)
     return api
 

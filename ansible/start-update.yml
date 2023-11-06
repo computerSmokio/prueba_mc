@@ -1,0 +1,28 @@
+- name: Gather information about EC2 instances
+  hosts: bastion
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+    - name: Fetch EC2 instance details
+      amazon.aws.ec2_instance_info:
+        region: "{{ aws_region }}"
+        filters:
+          "tag:Name": "{{ environ }}-{{ stack_name }}-*"
+          "tag:aws:autoscaling:groupName": "{{ stack_name }}-*"
+      register: ec2_instances_info
+    - name: Print EC2 instance information
+      debug:
+        var: ec2_instances_info
+    - name: Create a list of ASG instance IPs
+      set_fact:
+        asg_instance_ips: "{{ asg_instance_ips | default([]) + [item.network_interfaces[0].private_ip_address | default('')] }}"
+      loop: "{{ ec2_instances_info.instances }}"
+    - name: Remove Empty Values
+      set_fact:
+        asg_instance_ips: "{{ asg_instance_ips | reject('equalto', '') | list }}"
+    - name: print ips
+      debug:
+        var: asg_instance_ips
+    - name: Update container
+      include_tasks: update-containers.yml
+      loop: "{{ asg_instance_ips }}"

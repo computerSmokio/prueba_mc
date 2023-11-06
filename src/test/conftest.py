@@ -8,7 +8,7 @@ from falcon import testing
 import pytest
 
 
-endpoint_url = '{}/json'.format(Config.BASE_URL)
+endpoint_url = '/json'
 base_dir=Config.JSON_DIR
 
 @pytest.fixture()
