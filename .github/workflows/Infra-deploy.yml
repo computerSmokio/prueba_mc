@@ -49,13 +49,13 @@ jobs:
             --parameter-overrides \
               DOCKERUSER=${{ secrets.DOCKERUSER }} \
               DOCKERPASS=${{ secrets.DOCKERPASS }} \
-              IMAGETAG=${{ vars.IMAGE_TAG }} \
-              HAPROXYPORT=${{ vars.HAPROXY_PORT }} \
-              APIPORT=${{ vars.API_PORT }} \
-              HAPROXYSTATSPORT=${{ vars.HAPROXY_STATS_PORT }} \
-              HAPROXYRUNAPIPORT=${{ vars.HAPROXY_RUN_API_PORT }} \
-              HAPROXYVERSION=${{ vars.HAPROXY_VERSION }} \
-              REGISTRYURL=${{ vars.REGISTRY_URL }} \
+              IMAGETAG=${{ vars.IMAGE_TAG }}
+              HAPROXYPORT=${{ vars.HAPROXY_PORT }}
+              APIPORT=${{ vars.API_PORT }}
+              HAPROXYSTATSPORT=${{ vars.HAPROXY_STATS_PORT }}
+              HAPROXYRUNAPIPORT=${{ vars.HAPROXY_RUN_API_PORT }}
+              HAPROXYVERSION=${{ vars.HAPROXY_VERSION }}
+              REGISTRYURL=${{ vars.REGISTRY_URL }}
               ENVIRONMENT=QA
   deploy-manual:
     runs-on: ubuntu-latest
@@ -84,11 +84,11 @@ jobs:
             --parameter-overrides \
               DOCKERUSER=${{ secrets.DOCKERUSER }} \
               DOCKERPASS=${{ secrets.DOCKERPASS }} \
-              IMAGETAG=${{ inputs.image_tag }} \
-              HAPROXYPORT=${{ vars.HAPROXY_PORT }} \
-              APIPORT=${{ vars.API_PORT }} \
-              HAPROXYSTATSPORT=${{ vars.HAPROXY_STATS_PORT }} \
-              HAPROXYRUNAPIPORT=${{ vars.HAPROXY_RUN_API_PORT }} \
-              HAPROXYVERSION=${{ vars.HAPROXY_VERSION }} \
-              REGISTRYURL=${{ vars.REGISTRY_URL }} \
+              IMAGETAG=${{ inputs.image_tag }}
+              HAPROXYPORT=${{ vars.HAPROXY_PORT }}
+              APIPORT=${{ vars.API_PORT }}
+              HAPROXYSTATSPORT=${{ vars.HAPROXY_STATS_PORT }}
+              HAPROXYRUNAPIPORT=${{ vars.HAPROXY_RUN_API_PORT }}
+              HAPROXYVERSION=${{ vars.HAPROXY_VERSION }}
+              REGISTRYURL=${{ vars.REGISTRY_URL }}
               ENVIRONMENT=${{ github.event.inputs.environment }}
