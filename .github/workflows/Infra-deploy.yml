@@ -44,7 +44,7 @@ jobs:
         run: |
           aws cloudformation deploy \
             --template-file CFTemplate.yml\
-            --stack-name  \
+            --stack-name ${{ vars.QA_STACK_NAME }} \
             --capabilities CAPABILITY_IAM \
             --parameter-overrides \
               DOCKERUSER=${{ secrets.DOCKERUSER }} \
