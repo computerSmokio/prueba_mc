@@ -48,3 +48,9 @@
       env: allow_more_present
       volumes: allow_more_present
       ports: allow_more_present
+
+- name: Limpiar Variables
+  set_fact:
+    env_docker: {}
+    modified_mounts: []
+    transformed_ports: []
