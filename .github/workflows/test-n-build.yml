@@ -61,7 +61,7 @@ jobs:
           docker build -t ${{ secrets.DOCKERUSER }}/json-api:dev-${{ github.event.pull_request.number }} .
           docker push ${{ secrets.DOCKERUSER }}/json-api:dev-${{ github.event.pull_request.number }}
       - name: Build and push Docker images for QA
-        if: ${{ github.event_name == 'workflows-n-pipes' }}
+        if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           docker build -t ${{ secrets.DOCKERUSER }}/json-api:qa-$GITHUB_SHA .
           docker push ${{ secrets.DOCKERUSER }}/json-api:qa-$GITHUB_SHA

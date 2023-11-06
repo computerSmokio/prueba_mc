@@ -1,6 +1,6 @@
 name: Deploy CloudFormation Stack
 on:
-  pull_request:
+  push:
     branches:
       - main
     paths:
